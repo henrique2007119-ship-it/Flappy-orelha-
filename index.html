@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Orelha - O Jogo</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas {
+            border: 4px solid #000;
+            background-color: #87CEEB; /* Céu Azul Claro */
+            image-rendering: pixelated; /* Visual Retrô */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Configurações de Tamanho
+    canvas.width = 400;
+    canvas.height = 600;
+
+    // Variáveis de Jogo
+    let frames = 0;
+    let score = 0;
+    let gameActive = true;
+
+    // Propriedades da Orelha
+    const orelha = {
+        x: 50,
+        y: 150,
+        w: 34,
+        h: 44,
+        gravidade: 0.25,
+        velocidade: 0,
+        pulo: 4.6,
+        asaAngulo: 0,
+
+        desenhar() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            // Asa Branca (Bate conforme a velocidade)
+            ctx.fillStyle = "white";
+            this.asaAngulo = Math.sin(frames * 0.2) * 15;
+            ctx.rotate((this.asaAngulo * Math.PI) / 180);
+            ctx.fillRect(-15, 0, 20, 10);
+            ctx.setTransform(1, 0, 0, 1, this.x, this.y); // Reset rotação para orelha
+
+            // Corpo da Orelha (Simples Pixel Art com ctx)
+            ctx.fillStyle = "#FFC0CB"; // Cor de pele rosada
+            // Parte externa
+            ctx.beginPath();
+            ctx.ellipse(15, 20, 15, 22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#E5989B";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Detalhe interno (Anti-hélice)
+            ctx.beginPath();
+            ctx.arc(15, 22, 7, 0, Math.PI, false);
+            ctx.stroke();
+
+            ctx.restore();
+        },
+
+        atualizar() {
+            this.velocidade += this.gravidade;
+            this.y += this.velocidade;
+
+            // Colisão com o chão ou teto
+            if (this.y + this.h > canvas.height || this.y < 0) {
+                gameOver();
+            }
+        },
+
+        pular() {
+            this.velocidade = -this.pulo;
+        }
+    };
+
+    // Obstáculos (Cotonetes)
+    const cotonetes = {
+        lista: [],
+        larguraHaste: 8,
+        larguraAlgodao: 30,
+        vao: 140, // Espaço entre cotonetes
+
+        gerar() {
+            if (frames % 100 === 0) {
+                let alturaMinima = 50;
+                let alturaMaxima = canvas.height - this.vao - 50;
+                let yRandom = Math.floor(Math.random() * (alturaMaxima - alturaMinima + 1) + alturaMinima);
+
+                this.lista.push({
+                    x: canvas.width,
+                    y: yRandom
+                });
+            }
+        },
+
+        desenhar() {
+            this.lista.forEach(c => {
+                ctx.fillStyle = "#FFFFFF";
+                
+                // --- Cotonete de Cima ---
+                // Haste
+                ctx.fillRect(c.x + (this.larguraAlgodao/2 - this.larguraHaste/2), 0, this.larguraHaste, c.y);
+                // Ponta de Algodão (Baixo)
+                ctx.beginPath();
+                ctx.fillStyle = "#F0F8FF"; 
+                ctx.arc(c.x + this.larguraAlgodao/2, c.y, this.larguraAlgodao/2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // --- Cotonete de Baixo ---
+                // Haste
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(c.x + (this.larguraAlgodao/2 - this.larguraHaste/2), c.y + this.vao, this.larguraHaste, canvas.height);
+                // Ponta de Algodão (Cima)
+                ctx.beginPath();
+                ctx.fillStyle = "#F0F8FF";
+                ctx.arc(c.x + this.larguraAlgodao/2, c.y + this.vao, this.larguraAlgodao/2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        },
+
+        atualizar() {
+            this.lista.forEach((c, index) => {
+                c.x -= 2;
+
+                // Colisão
+                if (
+                    orelha.x + 25 > c.x && 
+                    orelha.x < c.x + this.larguraAlgodao && 
+                    (orelha.y < c.y || orelha.y + 30 > c.y + this.vao)
+                ) {
+                    gameOver();
+                }
+
+                // Pontuação
+                if (c.x + this.larguraAlgodao === orelha.x) {
+                    score++;
+                }
+
+                // Remover cotonetes que saíram da tela
+                if (c.x < -this.larguraAlgodao) {
+                    this.lista.splice(index, 1);
+                }
+            });
+        }
+    };
+
+    // Cenário (Nuvens)
+    function desenharNuvens() {
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(100, 100, 20, 0, Math.PI * 2);
+        ctx.arc(120, 100, 25, 0, Math.PI * 2);
+        ctx.arc(140, 100, 20, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(300, 250, 15, 0, Math.PI * 2);
+        ctx.arc(320, 250, 20, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function gameOver() {
+        gameActive = false;
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.font = "30px Courier New";
+        ctx.fillText("FIM DE JOGO", canvas.width/2 - 90, canvas.height/2);
+        ctx.font = "15px Courier New";
+        ctx.fillText("Clique para Reiniciar", canvas.width/2 - 95, canvas.height/2 + 40);
+    }
+
+    function reset() {
+        orelha.y = 150;
+        orelha.velocidade = 0;
+        cotonetes.lista = [];
+        score = 0;
+        frames = 0;
+        gameActive = true;
+        loop();
+    }
+
+    // Loop Principal
+    function loop() {
+        if (!gameActive) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        desenharNuvens();
+        
+        cotonetes.gerar();
+        cotonetes.desenhar();
+        cotonetes.atualizar();
+
+        orelha.desenhar();
+        orelha.atualizar();
+
+        // Placar
+        ctx.fillStyle = "white";
+        ctx.font = "30px Arial";
+        ctx.fillText(score, canvas.width / 2, 50);
+
+        frames++;
+        requestAnimationFrame(loop);
+    }
+
+    // Inputs
+    window.addEventListener("mousedown", () => {
+        if (gameActive) orelha.pular();
+        else reset();
+    });
+
+    window.addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+            if (gameActive) orelha.pular();
+            else reset();
+        }
+    });
+
+    loop();
+</script>
+
+</body>
+</html>
